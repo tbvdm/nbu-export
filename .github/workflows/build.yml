@@ -1,0 +1,102 @@
+name: build
+
+on: push
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: check out
+        uses: actions/checkout@v2
+
+      - name: build
+        run: make
+
+      - name: run
+        run: |
+          set +e
+          # Run with bogus input file
+          ./nbu-export nbu-export.c
+          test $? = 1
+
+  macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: check out
+        uses: actions/checkout@v2
+
+      - name: build
+        run: make
+
+      - name: run
+        run: |
+          set +e
+          # Run with bogus input file
+          ./nbu-export nbu-export.c
+          test $? = 1
+
+  freebsd:
+    runs-on: macos-10.15
+
+    steps:
+      - name: check out
+        uses: actions/checkout@v2
+
+      - name: run vm
+        uses: vmactions/freebsd-vm@v0.1.5
+        with:
+          usesh: true
+          run: |
+            uname -a
+            make
+            set +e
+            # Run with bogus input file
+            ./nbu-export nbu-export.c
+            test $? = 1
+
+  solaris:
+    runs-on: macos-10.15
+
+    steps:
+      - name: check out
+        uses: actions/checkout@v2
+
+      - name: run vm
+        uses: vmactions/solaris-vm@v0.0.3
+        with:
+          prepare: pkgutil -iy gcc5core gmake
+          run: |
+            uname -a
+            CC=gcc gmake
+            set +e
+            # Run with bogus input file
+            ./nbu-export nbu-export.c
+            test $? = 1
+
+  cygwin:
+    runs-on: windows-latest
+
+    steps:
+      - name: configure git
+        run: git config --global core.autocrlf input
+
+      - name: check out
+        uses: actions/checkout@v2
+
+      - name: install cygwin
+        uses: cygwin/cygwin-install-action@master
+        with:
+          packages: gcc-core make
+
+      - name: build and run
+        shell: C:\cygwin\bin\bash.exe -elo igncr -o pipefail '{0}'
+        run: |
+          uname -a
+          cd $GITHUB_WORKSPACE
+          make
+          set +e
+          # Run with bogus input file
+          ./nbu-export nbu-export.c
+          test $? = 1

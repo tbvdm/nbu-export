@@ -16,10 +16,10 @@
 
 #define NBU_DEBUG
 
-#include <sys/queue.h>
+#include "config.h"
+
 #include <sys/stat.h>
 
-#include <endian.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -34,6 +34,7 @@
 #include <stdarg.h>
 #endif
 
+#include "compat.h"
 #include "utf.h"
 
 #define NBU_GUID_LEN 16

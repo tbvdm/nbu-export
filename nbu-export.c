@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "config.h"
+
 #include <sys/stat.h>
 
 #include <err.h>
@@ -22,6 +24,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "compat.h"
 #include "nbu.h"
 
 __dead void
@@ -36,6 +39,8 @@ main(int argc, char **argv)
 {
 	struct nbu_ctx *ctx;
 	const char *backup, *dir;
+
+	setprogname(argv[0]);
 
 	switch (argc) {
 	case 2:
