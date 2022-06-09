@@ -117,7 +117,6 @@ static const struct nbu_section nbu_sections[] = {
 			0x92, 0x83, 0x1b, 0x06, 0xc3, 0xc3, 0x9a, 0x35
 		},
 		nbu_read_advanced_settings_section
-
 	},
 	{
 		{
@@ -632,6 +631,8 @@ nbu_export_message_folder(struct nbu_ctx *ctx, struct nbu_folder *folder,
 		warnx("asprintf() failed");
 		free(base);
 	}
+
+	free(base);
 
 	fd = openat(dfd, name, O_WRONLY | O_CREAT | O_EXCL, 0666);
 	if (fd == -1) {
