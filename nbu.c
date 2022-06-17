@@ -36,6 +36,11 @@
 
 #include "utf.h"
 
+#define NBU_CALENDAR_FILE	"calendar.ics"
+#define NBU_CONTACTS_FILE	"contacts.vcf"
+#define NBU_MEMOS_DIR		"memos"
+#define NBU_MESSAGES_DIR	"messages"
+
 #define NBU_GUID_LEN 16
 
 #ifndef nitems
@@ -657,13 +662,15 @@ nbu_export_message_folder(struct nbu_ctx *ctx, struct nbu_folder *folder,
 static int
 nbu_export_calendar(struct nbu_ctx *ctx, int dfd)
 {
-	return nbu_export_item_list(ctx, ctx->calendar, dfd, "calendar.ics");
+	return nbu_export_item_list(ctx, ctx->calendar, dfd,
+	    NBU_CALENDAR_FILE);
 }
 
 static int
 nbu_export_contacts(struct nbu_ctx *ctx, int dfd)
 {
-	return nbu_export_item_list(ctx, ctx->contacts, dfd, "contacts.vcf");
+	return nbu_export_item_list(ctx, ctx->contacts, dfd,
+	    NBU_CONTACTS_FILE);
 }
 
 static int
@@ -676,8 +683,8 @@ nbu_export_memos(struct nbu_ctx *ctx, int dfd)
 	if (ctx->memos == NULL || STAILQ_EMPTY(ctx->memos))
 		return 0;
 
-	if (mkdirat(dfd, "memos", 0777) == -1 && errno != EEXIST) {
-		warn("mkdirat: memos");
+	if (mkdirat(dfd, NBU_MEMOS_DIR, 0777) == -1 && errno != EEXIST) {
+		warn("mkdirat: %s", NBU_MEMOS_DIR);
 		return -1;
 	}
 
@@ -685,7 +692,8 @@ nbu_export_memos(struct nbu_ctx *ctx, int dfd)
 	i = 1;
 
 	STAILQ_FOREACH(item, ctx->memos, entries) {
-		snprintf(name, sizeof name, "memos/memo-%d.txt", i++);
+		snprintf(name, sizeof name, "%s/memo-%d.txt", NBU_MEMOS_DIR,
+		    i++);
 		if (nbu_export_utf16_item(ctx, item, dfd, name) == -1)
 			ret = -1;
 	}
@@ -702,16 +710,16 @@ nbu_export_messages(struct nbu_ctx *ctx, int dfd)
 	if (ctx->messages == NULL || STAILQ_EMPTY(ctx->messages))
 		return 0;
 
-	if (mkdirat(dfd, "messages", 0777) == -1 && errno != EEXIST) {
-		warn("mkdirat: messages");
+	if (mkdirat(dfd, NBU_MESSAGES_DIR, 0777) == -1 && errno != EEXIST) {
+		warn("mkdirat: %s", NBU_MESSAGES_DIR);
 		return -1;
 	}
 
 	ret = 0;
 
 	STAILQ_FOREACH(folder, ctx->messages, entries) {
-		if (nbu_export_message_folder(ctx, folder, dfd, "messages") ==
-		    -1)
+		if (nbu_export_message_folder(ctx, folder, dfd,
+		    NBU_MESSAGES_DIR) == -1)
 			ret = -1;
 	}
 
