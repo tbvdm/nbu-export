@@ -19,6 +19,7 @@
 #include <sys/queue.h>
 #include <sys/stat.h>
 
+#include <ctype.h>
 #include <endian.h>
 #include <err.h>
 #include <errno.h>
@@ -400,6 +401,26 @@ nbu_print_phone_info(struct nbu_ctx *ctx)
 }
 #endif
 
+static void
+nbu_sanitise_filename(char *name)
+{
+	char *c;
+
+	if (strcmp(name, ".") == 0) {
+		name[0] = '_';
+		return;
+	}
+
+	if (strcmp(name, "..") == 0) {
+		name[0] = name[1] = '_';
+		return;
+	}
+
+	for (c = name; *c != '\0'; c++)
+		if (*c == '/' || iscntrl((unsigned char)*c))
+			*c = '_';
+}
+
 struct nbu_item_list *
 nbu_new_item_list(void)
 {
@@ -647,12 +668,7 @@ nbu_export_message_folder(struct nbu_ctx *ctx, struct nbu_folder *folder,
 	if ((base = (char *)nbu_convert_utf16_to_utf8(folder->name)) == NULL)
 		return -1;
 
-	if (base[0] == '\0' || strchr(base, '/') != NULL ||
-	    strcmp(base, ".") == 0 || strcmp(base, "..") == 0) {
-		warnx("Invalid folder name");
-		free(base);
-		return -1;
-	}
+	nbu_sanitise_filename(base);
 
 	if (asprintf(&name, "%s/%s.vmg", path, base) == -1) {
 		warnx("asprintf() failed");
@@ -692,12 +708,7 @@ nbu_export_mms_folder(struct nbu_ctx *ctx, struct nbu_folder *folder, int dfd,
 	if ((base = (char *)nbu_convert_utf16_to_utf8(folder->name)) == NULL)
 		return -1;
 
-	if (base[0] == '\0' || strchr(base, '/') != NULL ||
-	    strcmp(base, ".") == 0 || strcmp(base, "..") == 0) {
-		warnx("Invalid folder name");
-		free(base);
-		return -1;
-	}
+	nbu_sanitise_filename(base);
 
 	if (asprintf(&dir, "%s/%s", path, base) == -1) {
 		warnx("asprintf() failed");
