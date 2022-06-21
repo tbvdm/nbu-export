@@ -2,7 +2,7 @@ nbu-export
 ==========
 
 nbu-export is a utility to export messages, memos, calender items and contacts
-from Nokia NBU backups. MMS messages are currently not exported.
+from Nokia NBU backups.
 
 nbu-export runs on the BSDs, Linux, macOS and Cygwin.
 
@@ -20,6 +20,9 @@ This example will give you an idea of how it works:
 	export/messages/predefdrafts.vmg
 	export/messages/predefinbox.vmg
 	export/messages/predefsent.vmg
+	export/mms/predefinbox/1.mms
+	export/mms/predefinbox/2.mms
+	export/mms/predefinbox/3.mms
 
 Building
 --------

@@ -20,6 +20,7 @@
 
 #include <sys/stat.h>
 
+#include <ctype.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -36,6 +37,12 @@
 
 #include "compat.h"
 #include "utf.h"
+
+#define NBU_CALENDAR_FILE	"calendar.ics"
+#define NBU_CONTACTS_FILE	"contacts.vcf"
+#define NBU_MEMOS_DIR		"memos"
+#define NBU_MESSAGES_DIR	"messages"
+#define NBU_MMS_DIR		"mms"
 
 #define NBU_GUID_LEN 16
 
@@ -118,7 +125,6 @@ static const struct nbu_section nbu_sections[] = {
 			0x92, 0x83, 0x1b, 0x06, 0xc3, 0xc3, 0x9a, 0x35
 		},
 		nbu_read_advanced_settings_section
-
 	},
 	{
 		{
@@ -396,6 +402,26 @@ nbu_print_phone_info(struct nbu_ctx *ctx)
 }
 #endif
 
+static void
+nbu_sanitise_filename(char *name)
+{
+	char *c;
+
+	if (strcmp(name, ".") == 0) {
+		name[0] = '_';
+		return;
+	}
+
+	if (strcmp(name, "..") == 0) {
+		name[0] = name[1] = '_';
+		return;
+	}
+
+	for (c = name; *c != '\0'; c++)
+		if (*c == '/' || iscntrl((unsigned char)*c))
+			*c = '_';
+}
+
 struct nbu_item_list *
 nbu_new_item_list(void)
 {
@@ -525,6 +551,27 @@ out:
 }
 
 static int
+nbu_export_item(struct nbu_ctx *ctx, struct nbu_item *item, int dfd,
+    const char *path)
+{
+	int fd;
+
+	fd = openat(dfd, path, O_WRONLY | O_CREAT | O_EXCL, 0666);
+	if (fd == -1) {
+		warn("openat: %s", path);
+		return -1;
+	}
+
+	if (nbu_export_item_to_fd(ctx, item, fd) == -1) {
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+	return 0;
+}
+
+static int
 nbu_export_utf16_item_to_fd(struct nbu_ctx *ctx, struct nbu_item *item, int fd)
 {
 	uint16_t *utf16;
@@ -622,17 +669,14 @@ nbu_export_message_folder(struct nbu_ctx *ctx, struct nbu_folder *folder,
 	if ((base = (char *)nbu_convert_utf16_to_utf8(folder->name)) == NULL)
 		return -1;
 
-	if (base[0] == '\0' || strchr(base, '/') != NULL ||
-	    strcmp(base, ".") == 0 || strcmp(base, "..") == 0) {
-		warnx("Invalid folder name");
-		free(base);
-		return -1;
-	}
+	nbu_sanitise_filename(base);
 
 	if (asprintf(&name, "%s/%s.vmg", path, base) == -1) {
 		warnx("asprintf() failed");
 		free(base);
 	}
+
+	free(base);
 
 	fd = openat(dfd, name, O_WRONLY | O_CREAT | O_EXCL, 0666);
 	if (fd == -1) {
@@ -655,15 +699,63 @@ nbu_export_message_folder(struct nbu_ctx *ctx, struct nbu_folder *folder,
 }
 
 static int
+nbu_export_mms_folder(struct nbu_ctx *ctx, struct nbu_folder *folder, int dfd,
+    const char *path)
+{
+	struct nbu_item *item;
+	char *base, *dir, *file;
+	int i, ret;
+
+	if ((base = (char *)nbu_convert_utf16_to_utf8(folder->name)) == NULL)
+		return -1;
+
+	nbu_sanitise_filename(base);
+
+	if (asprintf(&dir, "%s/%s", path, base) == -1) {
+		warnx("asprintf() failed");
+		free(base);
+	}
+
+	free(base);
+
+	if (mkdirat(dfd, dir, 0777) == -1 && errno != EEXIST) {
+		warn("mkdirat: %s", dir);
+		free(dir);
+		return -1;
+	}
+
+	ret = 0;
+	i = 1;
+
+	STAILQ_FOREACH(item, folder->items, entries) {
+		if (asprintf(&file, "%s/%d.mms", dir, i++) == -1) {
+			warnx("asprintf() failed");
+			ret = -1;
+			continue;
+		}
+
+		if (nbu_export_item(ctx, item, dfd, file) == -1)
+			ret = -1;
+
+		free(file);
+	}
+
+	free(dir);
+	return ret;
+}
+
+static int
 nbu_export_calendar(struct nbu_ctx *ctx, int dfd)
 {
-	return nbu_export_item_list(ctx, ctx->calendar, dfd, "calendar.ics");
+	return nbu_export_item_list(ctx, ctx->calendar, dfd,
+	    NBU_CALENDAR_FILE);
 }
 
 static int
 nbu_export_contacts(struct nbu_ctx *ctx, int dfd)
 {
-	return nbu_export_item_list(ctx, ctx->contacts, dfd, "contacts.vcf");
+	return nbu_export_item_list(ctx, ctx->contacts, dfd,
+	    NBU_CONTACTS_FILE);
 }
 
 static int
@@ -676,8 +768,8 @@ nbu_export_memos(struct nbu_ctx *ctx, int dfd)
 	if (ctx->memos == NULL || STAILQ_EMPTY(ctx->memos))
 		return 0;
 
-	if (mkdirat(dfd, "memos", 0777) == -1 && errno != EEXIST) {
-		warn("mkdirat: memos");
+	if (mkdirat(dfd, NBU_MEMOS_DIR, 0777) == -1 && errno != EEXIST) {
+		warn("mkdirat: %s", NBU_MEMOS_DIR);
 		return -1;
 	}
 
@@ -685,7 +777,8 @@ nbu_export_memos(struct nbu_ctx *ctx, int dfd)
 	i = 1;
 
 	STAILQ_FOREACH(item, ctx->memos, entries) {
-		snprintf(name, sizeof name, "memos/memo-%d.txt", i++);
+		snprintf(name, sizeof name, "%s/memo-%d.txt", NBU_MEMOS_DIR,
+		    i++);
 		if (nbu_export_utf16_item(ctx, item, dfd, name) == -1)
 			ret = -1;
 	}
@@ -702,17 +795,41 @@ nbu_export_messages(struct nbu_ctx *ctx, int dfd)
 	if (ctx->messages == NULL || STAILQ_EMPTY(ctx->messages))
 		return 0;
 
-	if (mkdirat(dfd, "messages", 0777) == -1 && errno != EEXIST) {
-		warn("mkdirat: messages");
+	if (mkdirat(dfd, NBU_MESSAGES_DIR, 0777) == -1 && errno != EEXIST) {
+		warn("mkdirat: %s", NBU_MESSAGES_DIR);
 		return -1;
 	}
 
 	ret = 0;
 
 	STAILQ_FOREACH(folder, ctx->messages, entries) {
-		if (nbu_export_message_folder(ctx, folder, dfd, "messages") ==
-		    -1)
+		if (nbu_export_message_folder(ctx, folder, dfd,
+		    NBU_MESSAGES_DIR) == -1)
 			ret = -1;
+	}
+
+	return ret;
+}
+
+static int
+nbu_export_mms(struct nbu_ctx *ctx, int dfd)
+{
+	struct nbu_folder *folder;
+	int ret;
+
+	if (ctx->mmses == NULL || STAILQ_EMPTY(ctx->mmses))
+		return 0;
+
+	if (mkdirat(dfd, NBU_MMS_DIR, 0777) == -1 && errno != EEXIST) {
+		warn("mkdirat: %s", NBU_MMS_DIR);
+		return -1;
+	}
+
+	ret = 0;
+
+	STAILQ_FOREACH(folder, ctx->mmses, entries) {
+		if (nbu_export_mms_folder(ctx, folder, dfd, NBU_MMS_DIR) == -1)
+			ret =-1;
 	}
 
 	return ret;
@@ -1472,6 +1589,9 @@ nbu_export(struct nbu_ctx *ctx, const char *path)
 		ret = -1;
 
 	if (nbu_export_messages(ctx, dfd) == -1)
+		ret = -1;
+
+	if (nbu_export_mms(ctx, dfd) == -1)
 		ret = -1;
 
 	close(dfd);
