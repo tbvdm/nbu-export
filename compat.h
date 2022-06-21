@@ -34,6 +34,9 @@
 #define __unused	__attribute__((__unused__))
 #endif
 
+/* For size_t */
+#include <stddef.h>
+
 #ifndef HAVE_GETPROGNAME
 const char *getprogname(void);
 void setprogname(const char *);
