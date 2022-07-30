@@ -37,6 +37,25 @@ jobs:
           ./nbu-export nbu-export.c
           test $? = 1
 
+  dragonfly:
+    runs-on: macos-12
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: run vm
+        uses: vmactions/dragonflybsd-vm@v0
+        with:
+          usesh: true
+          run: |
+            uname -a
+            make
+            set +e
+            # Run with bogus input file
+            ./nbu-export nbu-export.c
+            test $? = 1
+
   freebsd:
     runs-on: macos-12
 
@@ -48,6 +67,24 @@ jobs:
         uses: vmactions/freebsd-vm@v0
         with:
           usesh: true
+          run: |
+            uname -a
+            make
+            set +e
+            # Run with bogus input file
+            ./nbu-export nbu-export.c
+            test $? = 1
+
+  netbsd:
+    runs-on: macos-12
+
+    steps:
+      - name: check out
+        uses: actions/checkout@v2
+
+      - name: run vm
+        uses: vmactions/netbsd-vm@v0
+        with:
           run: |
             uname -a
             make
