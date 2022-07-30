@@ -38,14 +38,14 @@ jobs:
           test $? = 1
 
   freebsd:
-    runs-on: macos-10.15
+    runs-on: macos-12
 
     steps:
       - name: check out
         uses: actions/checkout@v2
 
       - name: run vm
-        uses: vmactions/freebsd-vm@v0.1.5
+        uses: vmactions/freebsd-vm@v0
         with:
           usesh: true
           run: |
@@ -57,14 +57,14 @@ jobs:
             test $? = 1
 
   solaris:
-    runs-on: macos-10.15
+    runs-on: macos-12
 
     steps:
       - name: check out
         uses: actions/checkout@v2
 
       - name: run vm
-        uses: vmactions/solaris-vm@v0.0.3
+        uses: vmactions/solaris-vm@v0
         with:
           prepare: pkgutil -iy gcc5core gmake
           run: |
